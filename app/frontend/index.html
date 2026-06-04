@@ -66,7 +66,21 @@
 </main>
 
 <script>
-  const API = "http://localhost:5000";
+  // Resolve API base URL for both local dev and GitHub Codespaces.
+  // In Codespaces the browser reaches the app via:
+  //   https://<codespace-name>-<port>.app.github.dev
+  // so we swap the frontend port (8080) for the API port (5000).
+  function resolveApiUrl() {
+    const { hostname, protocol } = window.location;
+    // Codespaces pattern: <name>-PORT.app.github.dev
+    //                 or: <name>-PORT.preview.app.github.dev
+    const match = hostname.match(/^(.+?)-(\d+)(\.preview)?\.app\.github\.dev$/);
+    if (match) {
+      return `${protocol}//${match[1]}-5000${match[3] || ""}.app.github.dev`;
+    }
+    return "http://localhost:5000";
+  }
+  const API = resolveApiUrl();
 
   /* -----------------------------------------------------------------------
    * VULNERABILITY 3 — Sensitive data stored in localStorage (CWE-922 / CWE-312)

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UserManager — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; }
+    header { background: #16213e; color: #fff; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    h2 { margin-bottom: 1rem; font-size: 1.1rem; color: #16213e; }
+    input { width: 100%; padding: .6rem .8rem; margin-bottom: .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .95rem; }
+    button { padding: .6rem 1.4rem; background: #0f3460; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: .95rem; }
+    button:hover { background: #1a4f8a; }
+    pre { background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: .85rem; overflow-x: auto; white-space: pre-wrap; }
+    #admin-section { display: none; }            /* VULNERABILITY 4 — client-side only hide */
+    .badge { display: inline-block; padding: .2rem .6rem; border-radius: 12px; font-size: .75rem; font-weight: 700; }
+    .badge-admin { background: #ffe0e0; color: #c0392b; }
+    .badge-user  { background: #e0f0ff; color: #1a6cb4; }
+    #status { font-size: .85rem; padding: .4rem 0; color: #555; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>UserManager</span>
+  <span id="nav-user">Not logged in</span>
+</header>
+
+<main>
+
+  <!-- LOGIN -->
+  <div class="card" id="login-card">
+    <h2>Login</h2>
+    <input type="text"     id="username" placeholder="Username" />
+    <input type="password" id="password" placeholder="Password" />
+    <button onclick="doLogin()">Sign in</button>
+    <p id="login-error" style="color:red;margin-top:.5rem;"></p>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="card" id="profile-card" style="display:none">
+    <h2>My Profile</h2>
+    <button onclick="loadProfile()">Reload profile</button>
+    <pre id="profile-output">—</pre>
+  </div>
+
+  <!-- USER LOOKUP -->
+  <div class="card" id="lookup-card" style="display:none">
+    <h2>User Lookup</h2>
+    <input type="text" id="lookup-id" placeholder="Enter user ID" />
+    <button onclick="lookupUser()">Search</button>
+    <pre id="lookup-output">—</pre>
+  </div>
+
+  <!-- ADMIN PANEL — hidden via CSS, not protected by auth -->
+  <div class="card" id="admin-section">
+    <h2>Admin Panel <span class="badge badge-admin">ADMIN</span></h2>
+    <button onclick="loadAllUsers()">List all users</button>
+    <pre id="admin-output">—</pre>
+  </div>
+
+  <p id="status"></p>
+</main>
+
+<script>
+  const API = "http://localhost:5000";
+
+  /* -----------------------------------------------------------------------
+   * VULNERABILITY 3 — Sensitive data stored in localStorage (CWE-922 / CWE-312)
+   * JWT tokens in localStorage are readable by any JS on the page (XSS risk).
+   * Tokens should be stored in HttpOnly cookies instead.
+   * ----------------------------------------------------------------------- */
+  async function doLogin() {
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    const res  = await fetch(`${API}/api/login`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById("login-error").textContent = data.error;
+      return;
+    }
+
+    // BUG: token stored in localStorage — accessible to XSS payloads
+    localStorage.setItem("auth_token", data.token);
+    localStorage.setItem("user_role",  data.role);
+
+    document.getElementById("nav-user").textContent =
+      `${username} (${data.role})`;
+    document.getElementById("login-card").style.display    = "none";
+    document.getElementById("profile-card").style.display  = "block";
+    document.getElementById("lookup-card").style.display   = "block";
+
+    /* VULNERABILITY 4 — Access control enforced only on the client (CWE-602)
+     * The admin section is unhidden here based on the role value returned by
+     * the server, but the /api/admin/users endpoint itself has NO auth check.
+     * Any user (or curl) can call it directly without a token.             */
+    if (data.role === "admin") {
+      document.getElementById("admin-section").style.display = "block";
+    }
+
+    loadProfile();
+  }
+
+  async function authFetch(url, options = {}) {
+    const token = localStorage.getItem("auth_token");   // reading the stored token
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async function loadProfile() {
+    const res  = await authFetch(`${API}/api/profile`);
+    const data = await res.json();
+    document.getElementById("profile-output").textContent =
+      JSON.stringify(data, null, 2);
+  }
+
+  async function lookupUser() {
+    const id  = document.getElementById("lookup-id").value;
+    const res = await authFetch(`${API}/api/user?id=${id}`);
+    const data = await res.json();
+    document.getElementById("lookup-output").textContent =
+      JSON.stringify(data, null, 2);
+  }
+
+  async function loadAllUsers() {
+    // Note: this call does NOT send an auth token — and the server doesn't need one.
+    const res  = await fetch(`${API}/api/admin/users`);
+    const data = await res.json();
+    document.getElementById("admin-output").textContent =
+      JSON.stringify(data, null, 2);
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,148 @@
+name: Security Pipeline — SAST + DAST
+
+on:
+  push:
+    branches: ["main", "solution/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # required to upload SARIF to GitHub Security tab
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. SAST — Bandit
+  # --------------------------------------------------------------------------
+  sast-bandit:
+    name: "SAST · Bandit"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: |
+          bandit \
+            --recursive app/backend \
+            --severity-level low \
+            --confidence-level low \
+            --format sarif \
+            --output bandit.sarif \
+            || true
+
+      - name: Upload Bandit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
+      - name: Bandit text report (CI log)
+        run: |
+          bandit --recursive app/backend --severity-level low || true
+
+  # --------------------------------------------------------------------------
+  # 2. SAST — Semgrep
+  # --------------------------------------------------------------------------
+  sast-semgrep:
+    name: "SAST · Semgrep"
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep (OWASP Top-10 + Python + JWT)
+        run: |
+          semgrep \
+            --config p/python \
+            --config p/owasp-top-ten \
+            --config p/jwt \
+            --sarif \
+            --output semgrep.sarif \
+            app/backend \
+            || true
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Semgrep text report (CI log)
+        run: |
+          semgrep --config p/python --config p/owasp-top-ten --config p/jwt app/backend || true
+
+  # --------------------------------------------------------------------------
+  # 3. DAST — custom probe suite (app must be running)
+  # --------------------------------------------------------------------------
+  dast:
+    name: "DAST · Custom probes"
+    runs-on: ubuntu-latest
+    needs: [sast-bandit, sast-semgrep]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r app/backend/requirements.txt requests
+
+      - name: Seed database
+        run: python app/backend/init_db.py
+
+      - name: Start Flask API (background)
+        run: |
+          python app/backend/app.py &
+          # wait until port 5000 is accepting connections
+          for i in $(seq 1 20); do
+            python -c "import socket; s=socket.socket(); s.connect(('localhost',5000))" 2>/dev/null && break
+            sleep 1
+          done
+          echo "API is up"
+
+      - name: Run DAST probes
+        run: python scripts/run_dast.py --url http://localhost:5000
+        # exit-code 1 when vulnerabilities found — expected on the vulnerable branch
+
+      - name: Upload DAST report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-report
+          path: reports/dast/dast_report.json
+
+  # --------------------------------------------------------------------------
+  # 4. CodeQL (GitHub native SAST)
+  # --------------------------------------------------------------------------
+  codeql:
+    name: "SAST · CodeQL"
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-python

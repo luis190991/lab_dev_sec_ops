@@ -6,16 +6,9 @@ setup:
 db:
 	python app/backend/init_db.py
 
+# Frontend is served by Flask at http://localhost:5000
 run: db
 	python app/backend/app.py
-
-frontend:
-	python -m http.server 8080 --directory app/frontend
-
-# Run API + frontend in background (useful in Codespaces terminal)
-dev: db
-	python app/backend/app.py &
-	python -m http.server 8080 --directory app/frontend
 
 sast:
 	bash scripts/run_sast.sh

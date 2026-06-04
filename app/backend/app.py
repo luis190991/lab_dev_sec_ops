@@ -3,15 +3,15 @@ UserManager API — v1.2.4
 Internal user management service. Do not expose to public internet.
 """
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, send_from_directory
 import sqlite3
 import jwt
 import datetime
 import os
 
-app = Flask(__name__)
-CORS(app)
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-2024")
 DB_PATH = os.path.join(os.path.dirname(__file__), "lab.db")
@@ -21,6 +21,15 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# ---------------------------------------------------------------------------
+# FRONTEND — served from Flask so browser and API share the same origin
+# ---------------------------------------------------------------------------
+
+@app.route("/")
+def index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
 
 
 # ---------------------------------------------------------------------------

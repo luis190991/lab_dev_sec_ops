@@ -1,27 +1,23 @@
 {
   "name": "Security Code Review Lab",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
-
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
-
-  "postCreateCommand": "pip install -r app/backend/requirements.txt -r requirements-dev.txt && python app/backend/init_db.py",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
 
   "forwardPorts": [5000, 8080],
   "portsAttributes": {
-    "5000": { "label": "Flask API",   "onAutoForward": "notify" },
-    "8080": { "label": "Frontend",    "onAutoForward": "notify" }
+    "5000": { "label": "Flask API",  "onAutoForward": "notify" },
+    "8080": { "label": "Frontend",   "onAutoForward": "notify" }
   },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
 
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
+        "ms-python.black-formatter",
         "ms-python.pylint",
+        "ms-python.mypy-type-checker",
         "SonarSource.sonarlint-vscode",
-        "ms-python.bandit",
         "redhat.vscode-yaml",
         "GitHub.vscode-github-actions"
       ],
@@ -30,12 +26,14 @@
         "editor.formatOnSave": true,
         "[python]": {
           "editor.defaultFormatter": "ms-python.black-formatter"
-        }
+        },
+        "python.terminal.activateEnvironment": false
       }
     }
   },
 
   "remoteEnv": {
-    "SECRET_KEY": "codespaces-lab-key-change-in-prod"
+    "SECRET_KEY": "codespaces-lab-key-change-in-prod",
+    "PYTHONDONTWRITEBYTECODE": "1"
   }
 }

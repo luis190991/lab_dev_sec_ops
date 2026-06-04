@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+app/backend/lab.db
+reports/
+.env
+*.egg-info/
